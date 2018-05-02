@@ -4,6 +4,22 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 $httpClient = new \LINE\LINEBot\HTTPClient\CurlHTTPClient(getenv('CHANNEL_ACCESS_TOKEN'));
 $bot = new \LINE\LINEBot($httpClient, ['channelSecret' => getenv('CHANNEL_SECRET')]);
+// ぐるなびアクセスキー
+$GNAVI_ACCESS_KEY = "2b8c732e2cbae40e4ad94857e789bf6a";
+
+$request = file_get_contents('php://input');
+$jsonObj = json_decode($request);
+$to = $jsonObj->{"result"}[0]->{"content"}->{"from"};
+$contentType = $jsonObj->{"result"}[0]->{"content"}->{"contentType"};
+$opType = $jsonObj->{"result"}[0]->{"content"}->{"opType"};
+
+// 友達追加時に送信するメッセージ
+if ($opType !== null && $opType === 4) {
+  $response_format_text = ['contentType'=>1,"toType"=>1,
+    "text"=>"You can check ramen store information by location information. @Author y.o"];
+  send_message_to_user($to,$response_format_text);
+  return;
+}
 
 $signature = $_SERVER["HTTP_" . \LINE\LINEBot\Constant\HTTPHeader::LINE_SIGNATURE];
 try {
