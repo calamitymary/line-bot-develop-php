@@ -1,5 +1,6 @@
 <?php
 
+// LINESDKの読込
 require_once __DIR__ . '/vendor/autoload.php';
 
 const GNAVI_ACCESS_KEY = "2b8c732e2cbae40e4ad94857e789bf6a";
@@ -9,7 +10,9 @@ const LINE_MID = "input your mid";
 $httpClient = new \LINE\LINEBot\HTTPClient\CurlHTTPClient(getenv('CHANNEL_ACCESS_TOKEN'));
 $bot = new \LINE\LINEBot($httpClient, ['channelSecret' => getenv('CHANNEL_SECRET')]);
 
+//LINEBOTにPOSTで送られてきた生データの取得
 $request = file_get_contents('php://input');
+
 $jsonObj = json_decode($request);
 $to = $jsonObj->{"result"}[0]->{"content"}->{"from"};
 $contentType = $jsonObj->{"result"}[0]->{"content"}->{"contentType"};
@@ -26,6 +29,26 @@ if ($opType !== null && $opType === 4) {
 $signature = $_SERVER["HTTP_" . \LINE\LINEBot\Constant\HTTPHeader::LINE_SIGNATURE];
 try {
   $events = $bot->parseEventRequest(file_get_contents('php://input'), $signature);
+  foreach ($events as $event) {
+    if (!($event instanceof \LINE\LINEBot\Event\MessageEvent)) {
+      error_log('Non message event has come');
+      continue;
+    }
+    if (!($event instanceof \LINE\LINEBot\Event\MessageEvent\TextMessage)) {
+      error_log('Non text message has come');
+      continue;
+    }
+    if ($contentType !== 7) {
+      $response_format_text = ['contentType'=>1,"toType"=>1,"text"=>"You should send location information"];
+      $sendMessage = send_message_to_user($to,$response_format_text);
+    } else {
+      $ramen_info = get_ramen_info($jsonObj);
+      $response_format_text = ['contentType'=>1,"toType"=>1,"text"=>$ramen_info];
+      $sendMessage = send_message_to_user($to,$response_format_text);
+    }
+    $bot->replyText($event->getReplyToken(), $sendMessage);
+    $bot->replyText($event->getReplyToken(), $event->getReplyText());
+  }
 } catch(\LINE\LINEBot\Exception\InvalidSignatureException $e) {
   error_log("parseEventRequest failed. InvalidSignatureException => ".var_export($e, true));
 } catch(\LINE\LINEBot\Exception\UnknownEventTypeException $e) {
@@ -36,25 +59,6 @@ try {
   error_log("parseEventRequest failed. InvalidEventRequestException => ".var_export($e, true));
 }
 
-foreach ($events as $event) {
-  if (!($event instanceof \LINE\LINEBot\Event\MessageEvent)) {
-    error_log('Non message event has come');
-    continue;
-  }
-  if (!($event instanceof \LINE\LINEBot\Event\MessageEvent\TextMessage)) {
-    error_log('Non text message has come');
-    continue;
-  }
-  // $bot->replyText($event->getReplyToken(), $event->getText());
-  if ($contentType !== 7) {
-     $response_format_text = ['contentType'=>1,"toType"=>1,"text"=>"You should send location information"];
-     send_message_to_user($to,$response_format_text);
-  } else {
-    $ramen_info = get_ramen_info($jsonObj);
-    $response_format_text = ['contentType'=>1,"toType"=>1,"text"=>$ramen_info];
-    send_message_to_user($to,$response_format_text);
-  }
-}
 
 function send_message_to_user($to,$response_format_text){
   $post_data = ["to"=>[$to],"toChannel"=>"1383378250","eventType"=>"138311608800106203","content"=>$response_format_text];
@@ -66,6 +70,7 @@ function send_message_to_user($to,$response_format_text){
   curl_setopt($ch, CURLOPT_HTTPHEADER, create_http_header());
   $result = curl_exec($ch);
   curl_close($ch);
+  return $result;
 }
 
 function create_http_header(){
